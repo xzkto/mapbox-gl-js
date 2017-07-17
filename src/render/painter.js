@@ -273,8 +273,8 @@ class Painter {
         this.renderPass();
 
         if (this.options.showTileBoundaries) {
-            const sourceCache = this.style.sourceCaches[Object.keys(this.style.sourceCaches)[0]];
-            if (sourceCache) {
+            for (const sourceKey: SourceCache in this.style.sourceCaches) {
+                const sourceCache = this.style.sourceCaches[sourceKey];
                 draw.debug(this, sourceCache, sourceCache.getVisibleCoordinates());
             }
         }
