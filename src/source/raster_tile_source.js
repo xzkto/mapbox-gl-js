@@ -15,7 +15,7 @@ import type Dispatcher from '../util/dispatcher';
 import type Tile from './tile';
 
 class RasterTileSource extends Evented implements Source {
-    type: 'raster';
+    type: 'raster' | 'raster-dem';
     id: string;
     minzoom: number;
     maxzoom: number;
