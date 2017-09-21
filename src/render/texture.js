@@ -30,26 +30,29 @@ class Texture {
     filter: ?TextureFilter;
     wrap: ?TextureWrap;
 
-    constructor(gl: WebGLRenderingContext, image: TextureImage, format: TextureFormat) {
+    constructor(gl: WebGLRenderingContext, image: TextureImage, format: TextureFormat, premultiply: ?boolean) {
         this.gl = gl;
 
         const {width, height} = image;
         this.size = [width, height];
         this.format = format;
-
         this.texture = gl.createTexture();
-        this.update(image);
+        this.update(image, premultiply);
     }
 
-    update(image: TextureImage) {
+    update(image: TextureImage, premultiply: ?boolean) {
         const {width, height} = image;
         this.size = [width, height];
+
+        if (premultiply === undefined) {
+            premultiply = true;
+        }
 
         const {gl} = this;
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
 
-        if (this.format === gl.RGBA) {
+        if (this.format === gl.RGBA && premultiply) {
             gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, (true: any));
         }
 
