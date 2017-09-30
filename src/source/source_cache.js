@@ -314,7 +314,6 @@ class SourceCache extends Evented {
      */
     _findLoadedChildren(coord: TileCoord, maxCoveringZoom: number, retain: {[any]: boolean}): boolean {
         let found = false;
-
         for (const id in this._tiles) {
             let tile = this._tiles[id];
 
@@ -478,6 +477,7 @@ class SourceCache extends Evented {
         const retain = {};
         const checked: {[number]: boolean } = {};
         const minCoveringZoom = Math.max(zoom - SourceCache.maxOverzooming, this._source.minzoom);
+        const maxCoveringZoom = Math.max(zoom + SourceCache.maxUnderzooming,  this._source.minzoom);
 
 
         for (i = 0; i < idealTileCoords.length; i++) {
@@ -509,17 +509,8 @@ class SourceCache extends Evented {
                         covered = false;
                     }
                 } else {
-                    // Check all four actual child tiles.
-                    const children = coord.children(this._source.maxzoom);
-                    for (let j = 0; j < children.length; j++) {
-                        const childCoord = children[j];
-                        const childTile = childCoord ? this.getTile(childCoord) : null;
-                        if (!!childTile && childTile.hasData()) {
-                            retain[childCoord.id] = true;
-                        } else {
-                            covered = false;
-                        }
-                    }
+                    this._findLoadedChildren(coord, maxCoveringZoom, retain);
+                    covered = false;
                 }
 
                 if (!covered) {
