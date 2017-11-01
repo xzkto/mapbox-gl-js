@@ -300,6 +300,9 @@ function getDefaultValue(spec: StylePropertySpecification): Value {
         // default color ramp, but createExpression expects a simple value to fall
         // back to in case of runtime errors
         return new Color(0, 0, 0, 0);
+    } else if (spec.type === 'color' && spec.default === undefined) {
+        // Special case for fill-outline-color, which has no spec default.
+        return null;
     } else if (spec.type === 'color') {
         return Color.parse(spec.default) || null;
     } else if (spec.default === undefined) {
