@@ -153,7 +153,7 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
       if(typeof supercluster.getClusters === 'undefined') {
         return callback(null, JSON.stringify(result));
       }
-      let zoom = Math.max(Math.min(params.zoom, params.maxzoom), params.minzoom);
+      let zoom = Math.max(Math.min(Math.ceil(params.zoom), params.maxzoom), params.minzoom);
       let maxCount = params.maxCount || Infinity;
       let bounds = params.bounds;
       let center = params.center || this.getBboxArrCenter(bounds);
