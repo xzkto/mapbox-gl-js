@@ -30,6 +30,15 @@ export type LoadGeoJSONParameters = {
     geojsonVtOptions?: Object
 };
 
+export type getPointListDataParameters = {
+    bounds: Object,
+    zoom: number,
+    maxCount?: number,
+    source: string,
+    minzoom: number,
+    maxzoom: number
+};
+
 export type LoadGeoJSON = (params: LoadGeoJSONParameters, callback: Callback<mixed>) => void;
 
 export interface GeoJSONIndex {
@@ -126,6 +135,109 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
                 callback(null);
             }
         });
+    }
+    
+    getPointListData(params: getPointListDataParameters, callback: Callback<void>) {
+      let result = {
+        apartmentIds: [],
+        clusterLookup: {}
+      };
+      
+      if(typeof this._geoJSONIndexes[params.source] === 'undefined') {
+        return callback(null, JSON.stringify(result));
+      }
+      let supercluster = this._geoJSONIndexes[params.source];
+      
+
+      //TODO: remove this duck-typing check
+      if(typeof supercluster.getClusters === 'undefined') {
+        return callback(null, JSON.stringify(result));
+      }
+      let zoom = Math.max(Math.min(params.zoom, params.maxzoom), params.minzoom);
+      let maxCount = params.maxCount || Infinity;
+      let bounds = params.bounds;
+      let center = params.center || this.getBboxArrCenter(bounds);
+
+      let clusters = supercluster.getClusters(
+        bounds,
+        zoom
+      );
+
+      let apartmentClusterLookup = {};
+      let apartmentIds = [];
+      let allClustersData = [];
+
+      for (let cluster of clusters) {
+        if (
+          typeof cluster.properties !== 'object' ||
+          cluster.properties.cluster !== true
+        ) {
+          var clusterFeatures = [cluster];
+          var clusterId = cluster.i;
+        } else {
+          var clusterId = cluster.properties.cluster_id;
+          var clusterFeatures = supercluster.getLeaves(
+            clusterId,
+            zoom,
+            maxCount
+          );
+        }
+
+        let allClusterData = {
+          clusterId,
+          coordinates: clusterFeatures[0].geometry.coordinates,
+          apartmentIds: [],
+        };
+        for (let clusterFeature of clusterFeatures) {
+          allClusterData.apartmentIds.push(clusterFeature.i);
+        }
+        allClustersData.push(allClusterData);
+      }
+
+      this.geoSpiralSort(allClustersData, center);
+
+      for (let allClusterData of allClustersData) {
+        for (let apartmentId of allClusterData.apartmentIds) {
+          apartmentIds.push(apartmentId);
+          apartmentClusterLookup[apartmentId] = allClusterData.clusterId;
+        }
+      }
+
+      result.apartmentIds = apartmentIds;
+      result.clusterLookup = apartmentClusterLookup;
+      return callback(null, JSON.stringify(result));
+    }
+    
+    
+    getBboxArrCenter(bbox) {
+      return [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
+    }
+
+    geoSpiralSort(allClustersData, center) {
+      if (!allClustersData.length) {
+        return;
+      }
+      
+      for (let allClusterData of allClustersData) {
+        allClusterData.distance = this.calculateDistarnce(
+          center,
+          allClusterData.coordinates
+        );
+      }
+      allClustersData.sort((a, b) => {
+        return a.distance - b.distance;
+      });
+    }
+
+    calculateDistarnce(a, b) {
+      var p = 0.017453292519943295; // Math.PI / 180
+      var c = Math.cos;
+      var a =
+        0.5 -
+        c((b[1] - a[1]) * p) / 2 +
+        c(a[1] * p) * c(b[1] * p) * (1 - c((b[0] - a[0]) * p)) / 2;
+
+      return 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
     }
 
     /**
