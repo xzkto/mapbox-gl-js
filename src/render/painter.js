@@ -46,7 +46,8 @@ type PainterOptions = {
     showOverdrawInspector: boolean,
     showTileBoundaries: boolean,
     rotating: boolean,
-    zooming: boolean
+    zooming: boolean,
+    collisionFadeDuration: number
 };
 
 /**

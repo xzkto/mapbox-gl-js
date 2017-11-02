@@ -40,7 +40,6 @@ class Worker {
 
         this.workerSourceTypes = {
             vector: VectorTileWorkerSource,
-            'raster-dem': RasterDEMTileWorkerSource,
             geojson: GeoJSONWorkerSource
         };
 
