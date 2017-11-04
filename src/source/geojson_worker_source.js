@@ -144,7 +144,7 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
       };
       
       if(typeof this._geoJSONIndexes[params.source] === 'undefined') {
-        return callback(null, JSON.stringify(result));
+        return callback(null, result);
       }
       let supercluster = this._geoJSONIndexes[params.source];
       
@@ -205,7 +205,7 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
 
       result.apartmentIds = apartmentIds;
       result.clusterLookup = apartmentClusterLookup;
-      return callback(null, JSON.stringify(result));
+      return callback(null, result);
     }
     
     
