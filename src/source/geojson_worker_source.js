@@ -166,7 +166,8 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
       let apartmentClusterLookup = {};
       let apartmentIds = [];
       let allClustersData = [];
-
+      let apartmentsCnt = 0;
+      
       for (let cluster of clusters) {
         if (
           typeof cluster.properties !== 'object' ||
@@ -190,8 +191,16 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
         };
         for (let clusterFeature of clusterFeatures) {
           allClusterData.apartmentIds.push(clusterFeature.i);
+          apartmentsCnt++;
+          if(apartmentsCnt >= maxCount) {
+            break;
+          }
         }
+        
         allClustersData.push(allClusterData);
+        if(apartmentsCnt >= maxCount) {
+            break;
+        }
       }
 
       this.geoSpiralSort(allClustersData, center);
