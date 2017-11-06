@@ -36,7 +36,8 @@ export type getPointListDataParameters = {
     maxCount?: number,
     source: string,
     minzoom: number,
-    maxzoom: number
+    maxzoom: number,
+    travellingSalesmanApprox?: boolean
 };
 
 export type LoadGeoJSON = (params: LoadGeoJSONParameters, callback: Callback<mixed>) => void;
@@ -192,9 +193,6 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
         for (let clusterFeature of clusterFeatures) {
           allClusterData.apartmentIds.push(clusterFeature.i);
           apartmentsCnt++;
-          if(apartmentsCnt >= maxCount) {
-            break;
-          }
         }
         
         allClustersData.push(allClusterData);
@@ -202,10 +200,30 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
             break;
         }
       }
+      
+      this.distanceSort(allClustersData, center);
+      
+      if(params.travellingSalesmanApprox) {
+     
+        let points = new Array(allClustersData.length);
+        for(let i=0; i<allClustersData.length; i++) {
+          var allClusterData = allClustersData[i];
+          points[i] = allClusterData.coordinates;
+        }
 
-      this.geoSpiralSort(allClustersData, center);
+        let travellingSalesmanApproximation = new TravellingSalesmanApproximation(points, center);
+        let paths = travellingSalesmanApproximation.solve()[0];
 
-      for (let allClusterData of allClustersData) {
+        var allClustersDataSorted = new Array(allClustersData.length);
+        for(let i=0; i<paths.length; i++) {
+          allClustersDataSorted[i] = allClustersData[paths[i]];
+        }
+      
+      } else {
+        allClustersDataSorted = allClustersData;
+      }
+
+      for (let allClusterData of allClustersDataSorted) {
         for (let apartmentId of allClusterData.apartmentIds) {
           apartmentIds.push(apartmentId);
           apartmentClusterLookup[apartmentId] = allClusterData.clusterId;
@@ -217,12 +235,7 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
       return callback(null, result);
     }
     
-    
-    getBboxArrCenter(bbox) {
-      return [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
-    }
-
-    geoSpiralSort(allClustersData, center) {
+    distanceSort(allClustersData, center) {
       if (!allClustersData.length) {
         return;
       }
@@ -239,14 +252,12 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
     }
 
     calculateDistarnce(a, b) {
-      var p = 0.017453292519943295; // Math.PI / 180
-      var c = Math.cos;
-      var a =
-        0.5 -
-        c((b[1] - a[1]) * p) / 2 +
-        c(a[1] * p) * c(b[1] * p) * (1 - c((b[0] - a[0]) * p)) / 2;
-
-      return 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
+      return Math.pow(a[0]-b[0], 2) + Math.pow(a[1]-b[1], 2);
+    }
+    
+    
+    getBboxArrCenter(bbox) {
+      return [(bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2];
     }
 
     /**
@@ -305,6 +316,194 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
         }
         callback();
     }
+}
+
+
+class TravellingSalesmanApproximation {
+  constructor(points, center) {
+    this.xPos = 0;
+    this.yPos = 1;
+    this.distancePos = 2;
+    this.bounds = {
+      minX: null,
+      minY: null,
+      maxX: null,
+      maxY: null,
+    };
+    
+    let pointsClone = new Array(points.length);
+    for(let i=0; i<points.length; i++) {
+      pointsClone[i] = points[i].slice();
+    }
+    
+    this.normalizePoints(pointsClone);
+    this.center = new Array(2);
+    if(!center) {
+      this.center[this.xPos] = this.width/2;
+      this.center[this.yPos] = this.height/2;
+    } else {
+      this.center[this.xPos] =
+              (center[this.xPos] - this.bounds.minX) *
+              this.width /
+              (this.bounds.maxX - this.bounds.minX);
+      this.center[this.yPos] =
+              (center[this.yPos] - this.bounds.minY) *
+              this.height /
+              (this.bounds.maxY - this.bounds.minY);
+    }
+
+    this.distanceMatrix = [];
+    this.randomPath = [];
+    this.generateDistanceMatrix();
+    this.generateRandomPath();
+  }
+  
+  getPoints(width, height) {
+    var points = new Array(this.points.length);
+    for (var i = 0; i < points.length; i++) {
+      points[i] = {
+        x:
+              (this.points[i][this.xPos]) *
+              width /
+              this.width,
+        y:
+              height - this.points[i][this.yPos]*
+              height /
+              this.height
+      }
+    }
+    return points;
+  }
+
+  generateDistanceMatrix() {
+    var points = this.points;
+    var pointsCount = this.points.length;
+    var distanceMatrix = new Array(pointsCount);
+    for (var i = 0; i < pointsCount; i++) {
+      distanceMatrix[i] = new Array(pointsCount);
+    }
+
+    for (var i = 0; i < pointsCount; i++) {
+      for (var j = i; j < pointsCount; j++) {
+        distanceMatrix[i][j] = Math.sqrt((points[i][this.xPos] - points[j][this.xPos]) * (points[i][this.xPos]
+                - points[j][this.xPos]) + (points[i][this.yPos] - points[j][this.yPos]) * (points[i][this.yPos] - points[j][this.yPos]));
+        distanceMatrix[j][i] = distanceMatrix[i][j];
+      }
+    }
+    this.distanceMatrix = distanceMatrix;
+  }
+
+  normalizePoints(points) {
+    
+    for (var i = 0; i < points.length; i++) {
+      let point = points[i];
+      
+      var polygonY = point[this.yPos];
+      var polygonX = point[this.xPos];
+      if (polygonX > this.bounds.maxX || this.bounds.maxX === null) {
+        this.bounds.maxX = polygonX;
+      }
+      if (polygonX < this.bounds.minX || this.bounds.minX === null) {
+        this.bounds.minX = polygonX;
+      }
+
+      if (polygonY > this.bounds.maxY || this.bounds.maxY === null) {
+        this.bounds.maxY = polygonY;
+      }
+      if (polygonY < this.bounds.minY || this.bounds.minY === null) {
+        this.bounds.minY = polygonY;
+      }
+    }
+    this.height = this.bounds.maxY - this.bounds.minY;
+    this.width = this.bounds.maxX - this.bounds.minX;
+    for (var i = 0; i < points.length; i++) {
+      let point = points[i];
+      
+      point[this.xPos] =
+              (point[this.xPos] - this.bounds.minX) *
+              this.width /
+              (this.bounds.maxX - this.bounds.minX);
+      point[this.yPos] =
+              (point[this.yPos] - this.bounds.minY) *
+              this.height /
+              (this.bounds.maxY - this.bounds.minY);
+    }
+    this.points = points;
+  }
+
+  generateRandomPath() {
+    var path = [];
+    for (var i = 0; i < this.points.length; i++) {
+      path[i] = i;
+    }
+    this.randomPath = path;
+  }
+
+  solve() {
+    var remaining = this.randomPath;
+    var path = [remaining[0]];
+    var paths = [];
+    paths.push(path.slice(0));
+
+    for (var i = 1; i < this.points.length; i++) {
+      var indexInRemaining = 0;
+      var indexInPath = 0;
+      var minimalDistance = this.height * this.height + this.width * this.width + 1;
+      var maximalDistanceToTour = -1;
+      var bestPoint = null;
+
+      for (var j = i; j < this.points.length; j++) {
+
+        minimalDistance = this.height * this.height + this.width * this.width + 1;
+
+        for (var k = 0; k < path.length; k++) {
+          var currentDistance = this.distanceMatrix[path[k]][remaining[j]];
+          if (currentDistance < minimalDistance) {
+            minimalDistance = currentDistance;
+
+          }
+        }
+        if (minimalDistance > maximalDistanceToTour) {
+          if (minimalDistance > maximalDistanceToTour) {
+            maximalDistanceToTour = minimalDistance;
+            bestPoint = remaining[j];
+            indexInRemaining = j;
+          }
+        }
+
+      }
+
+      remaining = this.swap(remaining, indexInRemaining, i);
+
+      var smallestDetour = this.height * this.height + this.width * this.width + 1;
+      for (var k = 0; k < path.length - 1; k++) {
+        var currentDetour = this.detour(path[k], remaining[i], path[k + 1]);
+        if (currentDetour < smallestDetour) {
+          smallestDetour = currentDetour;
+          indexInPath = k;
+        }
+      }
+      if (this.detour(path[path.length - 1], remaining[i], path[0]) < smallestDetour) {
+        path.splice(path.length, 0, remaining[i]);
+      } else {
+        path.splice(indexInPath + 1, 0, remaining[i]);
+      }
+    }
+    paths = [path];
+    return paths;
+  }
+
+  swap(path, i, j) {
+    var clone = path.slice(0);
+    var temp = clone[i];
+    clone[i] = clone[j];
+    clone[j] = temp;
+    return clone;
+  }
+
+  detour(before, insert, after) {
+    return this.distanceMatrix[before][insert] + this.distanceMatrix[insert][after] - this.distanceMatrix[before][after];
+  }
 }
 
 module.exports = GeoJSONWorkerSource;
