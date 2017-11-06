@@ -219,10 +219,11 @@ class GeoJSONSource extends Evented implements Source {
     }
     
     getPointListData(options, callback: Function) {
-        let _options = util.extend({}, options);
-        _options.source = this.id;
-        _options.minzoom = this.minzoom;
-        _options.maxzoom = this.maxzoom;
+        let _options = util.extend({}, {
+          source: this.id,
+          minzoom: this.minzoom,
+          maxzoom: this.maxzoom
+        }, options);
         this.workerID = this.dispatcher.send(`${this.type}.getPointListData`, _options, (err, data) => {
           callback(data);
         }, this.workerID);
