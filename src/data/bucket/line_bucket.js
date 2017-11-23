@@ -12,10 +12,11 @@ const vectorTileFeatureTypes = require('@mapbox/vector-tile').VectorTileFeature.
 
 import type {Bucket, IndexedFeature, PopulateParameters, SerializedBucket} from '../bucket';
 import type {ProgramInterface} from '../program_configuration';
-import type StyleLayer from '../../style/style_layer';
+import type LineStyleLayer from '../../style/style_layer/line_style_layer';
 import type Point from '@mapbox/point-geometry';
 import type {Segment} from '../segment';
 import type {StructArray} from '../../util/struct_array';
+import type {Transferable} from '../../types/transferable';
 
 // NOTE ON EXTRUDE SCALE:
 // scale the extrusion vector so that the normal length is this value.
@@ -62,7 +63,7 @@ const lineInterface = {
         {property: 'line-gap-width', name: 'gapwidth'},
         {property: 'line-offset'},
         {property: 'line-width'},
-        {property: 'line-width', name: 'floorwidth', useIntegerZoom: true},
+        {property: 'line-floorwidth'},
     ],
     indexArrayType: TriangleIndexArray
 };
@@ -103,7 +104,7 @@ class LineBucket implements Bucket {
     index: number;
     zoom: number;
     overscaling: number;
-    layers: Array<StyleLayer>;
+    layers: Array<LineStyleLayer>;
 
     layoutVertexArray: StructArray;
     layoutVertexBuffer: VertexBuffer;
@@ -168,10 +169,10 @@ class LineBucket implements Bucket {
 
     addFeature(feature: VectorTileFeature, geometry: Array<Array<Point>>) {
         const layout = this.layers[0].layout;
-        const join = this.layers[0].getLayoutValue('line-join', {zoom: this.zoom}, feature);
-        const cap = layout['line-cap'];
-        const miterLimit = layout['line-miter-limit'];
-        const roundLimit = layout['line-round-limit'];
+        const join = layout.get('line-join').evaluate(feature);
+        const cap = layout.get('line-cap');
+        const miterLimit = layout.get('line-miter-limit');
+        const roundLimit = layout.get('line-round-limit');
 
         for (const line of geometry) {
             this.addLine(line, feature, join, cap, miterLimit, roundLimit);

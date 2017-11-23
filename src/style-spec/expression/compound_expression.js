@@ -16,7 +16,6 @@ type Definition = [Type, Signature, Evaluate] |
     {|type: Type, overloads: Array<[Signature, Evaluate]>|};
 
 class CompoundExpression implements Expression {
-    key: string;
     name: string;
     type: Type;
     _evaluate: Evaluate;
@@ -24,8 +23,7 @@ class CompoundExpression implements Expression {
 
     static definitions: { [string]: Definition };
 
-    constructor(key: string, name: string, type: Type, evaluate: Evaluate, args: Array<Expression>) {
-        this.key = key;
+    constructor(name: string, type: Type, evaluate: Evaluate, args: Array<Expression>) {
         this.name = name;
         this.type = type;
         this._evaluate = evaluate;
@@ -38,6 +36,10 @@ class CompoundExpression implements Expression {
 
     eachChild(fn: (Expression) => void) {
         this.args.forEach(fn);
+    }
+
+    possibleOutputs() {
+        return [undefined];
     }
 
     static parse(args: Array<mixed>, context: ParsingContext): ?Expression {
@@ -97,7 +99,7 @@ class CompoundExpression implements Expression {
             }
 
             if (signatureContext.errors.length === 0) {
-                return new CompoundExpression(context.key, op, type, evaluate, parsedArgs);
+                return new CompoundExpression(op, type, evaluate, parsedArgs);
             }
         }
 

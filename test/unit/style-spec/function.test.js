@@ -993,21 +993,19 @@ test('unknown function', (t) => {
     t.end();
 });
 
-test('isConstant', (t) => {
-    t.test('zoom', (t) => {
+test('kind', (t) => {
+    t.test('camera', (t) => {
         const f = createFunction({
             stops: [[1, 1]]
         }, {
             type: 'number'
         });
 
-        t.notOk(f.isZoomConstant);
-        t.ok(f.isFeatureConstant);
-
+        t.equal(f.kind, 'camera');
         t.end();
     });
 
-    t.test('property', (t) => {
+    t.test('source', (t) => {
         const f = createFunction({
             stops: [[1, 1]],
             property: 'mapbox'
@@ -1015,13 +1013,11 @@ test('isConstant', (t) => {
             type: 'number'
         });
 
-        t.ok(f.isZoomConstant);
-        t.notOk(f.isFeatureConstant);
-
+        t.equal(f.kind, 'source');
         t.end();
     });
 
-    t.test('zoom + property', (t) => {
+    t.test('composite', (t) => {
         const f = createFunction({
             stops: [[{ zoom: 1, value: 1 }, 1]],
             property: 'mapbox'
@@ -1029,9 +1025,7 @@ test('isConstant', (t) => {
             type: 'number'
         });
 
-        t.notOk(f.isZoomConstant);
-        t.notOk(f.isFeatureConstant);
-
+        t.equal(f.kind, 'composite');
         t.end();
     });
 

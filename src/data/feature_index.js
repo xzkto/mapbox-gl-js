@@ -17,6 +17,7 @@ import type CollisionIndex from '../symbol/collision_index';
 import type StyleLayer from '../style/style_layer';
 import type {SerializedStructArray} from '../util/struct_array';
 import type {FeatureFilter} from '../style-spec/feature_filter';
+import type {Transferable} from '../types/transferable';
 
 const FeatureIndexArray = createStructArrayType({
     members: [
@@ -40,7 +41,8 @@ type QueryParameters = {
         layers: Array<string>,
     },
     tileSourceMaxZoom: number,
-    collisionBoxArray: any
+    collisionBoxArray: any,
+    sourceID: string
 }
 
 export type SerializedFeatureIndex = {
@@ -170,7 +172,7 @@ class FeatureIndex {
         this.filterMatching(result, matching, this.featureIndexArray, queryGeometry, filter, params.layers, styleLayers, args.bearing, pixelsToTileUnits);
 
         const matchingSymbols = this.collisionIndex ?
-            this.collisionIndex.queryRenderedSymbols(queryGeometry, this.coord, args.tileSourceMaxZoom, EXTENT / args.tileSize, args.collisionBoxArray) :
+            this.collisionIndex.queryRenderedSymbols(queryGeometry, this.coord, args.tileSourceMaxZoom, EXTENT / args.tileSize, args.collisionBoxArray, args.sourceID) :
             [];
         matchingSymbols.sort();
         this.filterMatching(result, matchingSymbols, args.collisionBoxArray, queryGeometry, filter, params.layers, styleLayers, args.bearing, pixelsToTileUnits);

@@ -35,21 +35,19 @@ declare type CompositeFunctionSpecification<T> =
     | {| type: 'interval',    stops: Array<[{zoom: number, value: number}, T]>, property: string, default?: T |}
     | {| type: 'categorical', stops: Array<[{zoom: number, value: string | number | boolean}, T]>, property: string, default?: T |};
 
-declare type ExpressionFunctionSpecification = {|
-    expression: mixed
-|}
+declare type ExpressionSpecification = Array<mixed>;
 
 declare type PropertyValueSpecification<T> =
     | T
     | CameraFunctionSpecification<T>
-    | ExpressionFunctionSpecification;
+    | ExpressionSpecification;
 
 declare type DataDrivenPropertyValueSpecification<T> =
     | T
     | CameraFunctionSpecification<T>
     | SourceFunctionSpecification<T>
     | CompositeFunctionSpecification<T>
-    | ExpressionFunctionSpecification;
+    | ExpressionSpecification;
 
 declare type StyleSpecification = {|
     "version": 8,
@@ -74,14 +72,26 @@ declare type LightSpecification = {|
     "intensity"?: PropertyValueSpecification<number>
 |}
 
-declare type TileSourceSpecification = {
-    "type": "vector" | "raster",
+declare type VectorSourceSpecification = {
+    "type": "vector",
     "url"?: string,
     "tiles"?: Array<string>,
     "bounds"?: [number, number, number, number],
     "minzoom"?: number,
     "maxzoom"?: number,
-    "tileSize"?: number
+    "attribution"?: string
+}
+
+declare type RasterSourceSpecification = {
+    "type": "raster",
+    "url"?: string,
+    "tiles"?: Array<string>,
+    "bounds"?: [number, number, number, number],
+    "minzoom"?: number,
+    "maxzoom"?: number,
+    "tileSize"?: number,
+    "scheme"?: "xyz" | "tms",
+    "attribution"?: string
 }
 
 declare type GeojsonSourceSpecification = {|
@@ -115,7 +125,8 @@ declare type CanvasSourceSpecification = {|
 |}
 
 declare type SourceSpecification =
-    | TileSourceSpecification
+    | VectorSourceSpecification
+    | RasterSourceSpecification
     | GeojsonSourceSpecification
     | VideoSourceSpecification
     | ImageSourceSpecification

@@ -4,6 +4,9 @@ const Scope = require('./scope');
 const {checkSubtype} = require('./types');
 const ParsingError = require('./parsing_error');
 const Literal = require('./definitions/literal');
+const Assertion = require('./definitions/assertion');
+const ArrayAssertion = require('./definitions/array');
+const Coercion = require('./definitions/coercion');
 
 import type {Expression} from './expression';
 import type {Type} from './types';
@@ -77,11 +80,11 @@ class ParsingContext {
                         expected.kind === 'boolean';
 
                     if (canAssert && actual.kind === 'value') {
-                        const Assertion = require('./definitions/assertion');
-                        parsed = new Assertion(parsed.key, expected, [parsed]);
+                        parsed = new Assertion(expected, [parsed]);
+                    } else if (expected.kind === 'array' && actual.kind === 'value') {
+                        parsed = new ArrayAssertion(expected, parsed);
                     } else if (expected.kind === 'color' && (actual.kind === 'value' || actual.kind === 'string')) {
-                        const Coercion = require('./definitions/coercion');
-                        parsed = new Coercion(parsed.key, expected, [parsed]);
+                        parsed = new Coercion(expected, [parsed]);
                     }
 
                     if (context.checkSubtype(expected, parsed.type)) {
@@ -95,7 +98,7 @@ class ParsingContext {
                 if (!(parsed instanceof Literal) && isConstant(parsed)) {
                     const ec = new (require('./evaluation_context'))();
                     try {
-                        parsed = new Literal(parsed.key, parsed.type, parsed.evaluate(ec));
+                        parsed = new Literal(parsed.type, parsed.evaluate(ec));
                     } catch (e) {
                         context.error(e.message);
                         return null;

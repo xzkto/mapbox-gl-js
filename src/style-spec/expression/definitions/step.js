@@ -10,15 +10,13 @@ import type EvaluationContext from '../evaluation_context';
 import type { Type } from '../types';
 
 class Step implements Expression {
-    key: string;
     type: Type;
 
     input: Expression;
     labels: Array<number>;
     outputs: Array<Expression>;
 
-    constructor(key: string, type: Type, input: Expression, stops: Stops) {
-        this.key = key;
+    constructor(type: Type, input: Expression, stops: Stops) {
         this.type = type;
         this.input = input;
 
@@ -64,7 +62,7 @@ class Step implements Expression {
                 return context.error('Input/output pairs for "step" expressions must be defined using literal numeric values (not computed expressions) for the input values.', labelKey);
             }
 
-            if (stops.length && stops[stops.length - 1][0] > label) {
+            if (stops.length && stops[stops.length - 1][0] >= label) {
                 return context.error('Input/output pairs for "step" expressions must be arranged with input values in strictly ascending order.', labelKey);
             }
 
@@ -74,7 +72,7 @@ class Step implements Expression {
             stops.push([label, parsed]);
         }
 
-        return new Step(context.key, outputType, input, stops);
+        return new Step(outputType, input, stops);
     }
 
     evaluate(ctx: EvaluationContext) {
@@ -104,6 +102,10 @@ class Step implements Expression {
         for (const expression of this.outputs) {
             fn(expression);
         }
+    }
+
+    possibleOutputs() {
+        return [].concat(...this.outputs.map((output) => output.possibleOutputs()));
     }
 }
 

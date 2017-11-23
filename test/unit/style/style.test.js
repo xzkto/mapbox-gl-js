@@ -12,7 +12,6 @@ const window = require('../../../src/util/window');
 const rtlTextPlugin = require('../../../src/source/rtl_text_plugin');
 const ajax = require('../../../src/util/ajax');
 const browser = require('../../../src/util/browser');
-const Color = require('../../../src/style-spec/util/color');
 
 function createStyleJSON(properties) {
     return util.extend({
@@ -315,12 +314,7 @@ test('Style#loadJSON', (t) => {
             sources: {
                 '-source-id-': { type: "vector", tiles: [] }
             },
-            layers: [{
-                'id': '-layer-id-',
-                'type': 'circle',
-                'source': '-source-id-',
-                'source-layer': '-source-layer-'
-            }]
+            layers: []
         }));
 
         style.on('style.load', () => {
@@ -329,6 +323,12 @@ test('Style#loadJSON', (t) => {
             const source = createSource();
             source['vector_layers'] = [{ id: 'green' }];
             style.addSource('-source-id-', source);
+            style.addLayer({
+                'id': '-layer-id-',
+                'type': 'circle',
+                'source': '-source-id-',
+                'source-layer': '-source-layer-'
+            });
             style.update();
         });
 
@@ -690,6 +690,49 @@ test('Style#removeSource', (t) => {
             t.throws(() => {
                 style.removeSource('source-id');
             }, /There is no source with this ID/);
+            t.end();
+        });
+    });
+
+    function createStyle(callback) {
+        const style = new Style(new StubMap());
+        style.loadJSON(createStyleJSON({
+            'sources': {
+                'mapbox-source': createGeoJSONSource()
+            },
+            'layers': [{
+                'id': 'mapbox-layer',
+                'type': 'circle',
+                'source': 'mapbox-source',
+                'source-layer': 'whatever'
+            }]
+        }));
+        style.on('style.load', () => {
+            style.update();
+            style._recalculate(1);
+            callback(style);
+        });
+        return style;
+    }
+
+    t.test('throws if source is in use', (t) => {
+        createStyle((style) => {
+            style.on('error', (event) => {
+                t.ok(event.error.message.includes('"mapbox-source"'));
+                t.ok(event.error.message.includes('"mapbox-layer"'));
+                t.end();
+            });
+            style.removeSource('mapbox-source');
+        });
+    });
+
+    t.test('does not throw if source is not in use', (t) => {
+        createStyle((style) => {
+            style.on('error', () => {
+                t.fail();
+            });
+            style.removeLayer('mapbox-layer');
+            style.removeSource('mapbox-source');
             t.end();
         });
     });
@@ -1350,6 +1393,15 @@ test('Style#setFilter', (t) => {
         });
     });
 
+    t.test('unsets filter', (t) => {
+        const style = createStyle();
+        style.on('style.load', () => {
+            style.setFilter('symbol', null);
+            t.equal(style.getLayer('symbol').serialize().filter, undefined);
+            t.end();
+        });
+    });
+
     t.test('emits if invalid', (t) => {
         const style = createStyle();
         style.on('style.load', () => {
@@ -1441,20 +1493,20 @@ test('Style#queryRenderedFeatures', (t) => {
                 const features = {
                     'land': [{
                         type: 'Feature',
-                        layer: style._layers.land,
+                        layer: style._layers.land.serialize(),
                         geometry: {
                             type: 'Polygon'
                         }
                     }, {
                         type: 'Feature',
-                        layer: style._layers.land,
+                        layer: style._layers.land.serialize(),
                         geometry: {
                             type: 'Point'
                         }
                     }],
                     'landref': [{
                         type: 'Feature',
-                        layer: style._layers.landref,
+                        layer: style._layers.landref.serialize(),
                         geometry: {
                             type: 'Line'
                         }
@@ -1559,7 +1611,7 @@ test('Style#queryRenderedFeatures', (t) => {
 
         t.test('includes paint properties', (t) => {
             const results = style.queryRenderedFeatures([{column: 1, row: 1, zoom: 1}], {}, 0, 0);
-            t.deepEqual(results[2].layer.paint['line-color'], new Color(1, 0, 0, 1));
+            t.deepEqual(results[2].layer.paint['line-color'], 'red');
             t.end();
         });
 
@@ -1735,6 +1787,57 @@ test('Style#addSourceType', (t) => {
         const style = new Style(new StubMap());
         style.addSourceType('existing', () => {}, (err) => {
             t.ok(err);
+            t.end();
+        });
+    });
+
+    t.end();
+});
+
+test('Style#hasTransitions', (t) => {
+    t.test('returns false when the style is loading', (t) => {
+        const style = new Style(new StubMap());
+        t.equal(style.hasTransitions(), false);
+        t.end();
+    });
+
+    t.test('returns true when a property is transitioning', (t) => {
+        const style = new Style(new StubMap());
+        style.loadJSON({
+            "version": 8,
+            "sources": {},
+            "layers": [{
+                "id": "background",
+                "type": "background"
+            }]
+        });
+
+        style.on('style.load', () => {
+            style.setPaintProperty("background", "background-color", "blue");
+            style.update();
+            t.equal(style.hasTransitions(), true);
+            t.end();
+        });
+    });
+
+    t.test('returns false when a property is not transitioning', (t) => {
+        const style = new Style(new StubMap());
+        style.loadJSON({
+            "version": 8,
+            "sources": {},
+            "transition": {
+                "duration": 0
+            },
+            "layers": [{
+                "id": "background",
+                "type": "background"
+            }]
+        });
+
+        style.on('style.load', () => {
+            style.setPaintProperty("background", "background-color", "blue");
+            style.update();
+            t.equal(style.hasTransitions(), false);
             t.end();
         });
     });

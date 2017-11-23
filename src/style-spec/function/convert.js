@@ -23,6 +23,10 @@ function convertFunction(parameters, propertySpec, name) {
         const zoomDependent = zoomAndFeatureDependent || !featureDependent;
 
         const stops = parameters.stops.map((stop) => {
+            if (!featureDependent && (name === 'icon-image' || name === 'text-field') && typeof stop[1] === 'string') {
+                return [stop[0], convertTokenString(stop[1])];
+
+            }
             return [stop[0], convertValue(stop[1], propertySpec)];
         });
 
@@ -30,10 +34,7 @@ function convertFunction(parameters, propertySpec, name) {
             throw new Error('Unimplemented');
         }
 
-        if (name === 'heatmap-color') {
-            assert(zoomDependent);
-            expression = convertZoomFunction(parameters, propertySpec, stops, ['heatmap-density']);
-        } else if (zoomAndFeatureDependent) {
+        if (zoomAndFeatureDependent) {
             expression = convertZoomAndPropertyFunction(parameters, propertySpec, stops, defaultExpression);
         } else if (zoomDependent) {
             expression = convertZoomFunction(parameters, propertySpec, stops);
@@ -51,8 +52,9 @@ function convertFunction(parameters, propertySpec, name) {
 function convertIdentityFunction(parameters, propertySpec, defaultExpression) {
     const get = ['get', parameters.property];
     const type = propertySpec.type;
+
     if (type === 'color') {
-        return ['to-color', get, parameters.default || null, propertySpec.default || null];
+        return parameters.default === undefined ? get : ['to-color', get, parameters.default];
     } else if (type === 'array' && typeof propertySpec.length === 'number') {
         return ['array', propertySpec.value, propertySpec.length, get];
     } else if (type === 'array') {
@@ -69,7 +71,7 @@ function convertIdentityFunction(parameters, propertySpec, defaultExpression) {
             ]
         ];
     } else {
-        return [propertySpec.type, get, parameters.default || null, propertySpec.default || null];
+        return parameters.default === undefined ? get : [propertySpec.type, get, parameters.default];
     }
 }
 
@@ -215,6 +217,11 @@ function fixupDegenerateStepCurve(expression) {
 }
 
 function appendStopPair(curve, input, output, isStep) {
+    // Skip duplicate stop values. They were not validated for functions, but they are for expressions.
+    // https://github.com/mapbox/mapbox-gl-js/issues/4107
+    if (curve.length > 3 && input === curve[curve.length - 2]) {
+        return;
+    }
     // step curves don't get the first input value, as it is redundant.
     if (!(isStep && curve.length === 2)) {
         curve.push(input);
@@ -222,7 +229,7 @@ function appendStopPair(curve, input, output, isStep) {
     curve.push(output);
 }
 
-function getFunctionType (parameters, propertySpec) {
+function getFunctionType(parameters, propertySpec) {
     if (parameters.type) {
         return parameters.type;
     } else if (propertySpec.function) {
@@ -231,3 +238,28 @@ function getFunctionType (parameters, propertySpec) {
         return 'exponential';
     }
 }
+
+// "String with {name} token" => ["concat", "String with ", ["get", "name"], " token"]
+function convertTokenString(s) {
+    const result = ['concat'];
+    const re = /{([^{}]+)}/g;
+    let pos = 0;
+    let match;
+    while ((match = re.exec(s)) !== null) {
+        const literal = s.slice(pos, re.lastIndex - match[0].length);
+        pos = re.lastIndex;
+        if (literal.length > 0) result.push(literal);
+        result.push(['to-string', ['get', match[1]]]);
+    }
+
+    if (result.length === 1) {
+        return s;
+    }
+
+    if (pos < s.length) {
+        result.push(s.slice(pos));
+    }
+
+    return result;
+}
+

@@ -61,7 +61,6 @@ class Tile {
     expirationTime: any;
     expiredRequestCount: number;
     state: TileState;
-    placementThrottler: any;
     timeAdded: any;
     fadeEndTime: any;
     rawTileData: ArrayBuffer;
@@ -106,13 +105,12 @@ class Tile {
         this.state = 'loading';
     }
 
-    registerFadeDuration(animationLoop: any, duration: number) {
+    registerFadeDuration(duration: number) {
         const fadeEndTime = duration + this.timeAdded;
         if (fadeEndTime < Date.now()) return;
         if (this.fadeEndTime && fadeEndTime < this.fadeEndTime) return;
 
         this.fadeEndTime = fadeEndTime;
-        animationLoop.set(this.fadeEndTime - Date.now());
     }
 
     wasRequested() {
@@ -206,19 +204,19 @@ class Tile {
         }
     }
 
-    placeLayer(showCollisionBoxes: boolean, collisionIndex: CollisionIndex, layer: any) {
+    placeLayer(showCollisionBoxes: boolean, collisionIndex: CollisionIndex, layer: any, sourceID: string) {
         const bucket = this.getBucket(layer);
         const collisionBoxArray = this.collisionBoxArray;
 
         if (bucket && bucket instanceof SymbolBucket && collisionBoxArray) {
             const posMatrix = collisionIndex.transform.calculatePosMatrix(this.coord, this.sourceMaxZoom);
 
-            const pitchWithMap = bucket.layers[0].layout['text-pitch-alignment'] === 'map';
+            const pitchWithMap = bucket.layers[0].layout.get('text-pitch-alignment') === 'map';
             const textPixelRatio = EXTENT / this.tileSize; // text size is not meant to be affected by scale
             const pixelRatio = pixelsToTileUnits(this, 1, collisionIndex.transform.zoom);
 
             const labelPlaneMatrix = projection.getLabelPlaneMatrix(posMatrix, pitchWithMap, true, collisionIndex.transform, pixelRatio);
-            performSymbolPlacement(bucket, collisionIndex, showCollisionBoxes, collisionIndex.transform.zoom, textPixelRatio, posMatrix, labelPlaneMatrix, this.coord.id, collisionBoxArray);
+            performSymbolPlacement(bucket, collisionIndex, showCollisionBoxes, collisionIndex.transform.zoom, textPixelRatio, posMatrix, labelPlaneMatrix, this.coord.id, sourceID, collisionBoxArray);
         }
     }
 
@@ -267,7 +265,8 @@ class Tile {
                           queryGeometry: Array<Array<Point>>,
                           scale: number,
                           params: { filter: FilterSpecification, layers: Array<string> },
-                          bearing: number): {[string]: Array<{ featureIndex: number, feature: GeoJSONFeature }>} {
+                          bearing: number,
+                          sourceID: string): {[string]: Array<{ featureIndex: number, feature: GeoJSONFeature }>} {
         if (!this.featureIndex)
             return {};
 
@@ -288,7 +287,8 @@ class Tile {
             params: params,
             additionalRadius: additionalRadius,
             tileSourceMaxZoom: this.sourceMaxZoom,
-            collisionBoxArray: this.collisionBoxArray
+            collisionBoxArray: this.collisionBoxArray,
+            sourceID: sourceID
         }, layers);
     }
 

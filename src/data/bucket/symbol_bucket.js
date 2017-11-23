@@ -1,4 +1,5 @@
 // @flow
+
 const Point = require('@mapbox/point-geometry');
 const {SegmentVector} = require('../segment');
 const VertexBuffer = require('../../gl/vertex_buffer');
@@ -6,7 +7,6 @@ const IndexBuffer = require('../../gl/index_buffer');
 const {ProgramConfigurationSet} = require('../program_configuration');
 const createVertexArrayType = require('../vertex_array_type');
 const {TriangleIndexArray, LineIndexArray} = require('../index_array_type');
-const resolveTokens = require('../../util/token');
 const transformText = require('../../symbol/transform_text');
 const mergeLines = require('../../symbol/mergelines');
 const scriptDetection = require('../../util/script_detection');
@@ -28,6 +28,9 @@ import type {
 } from '../../util/struct_array';
 import type SymbolStyleLayer from '../../style/style_layer/symbol_style_layer';
 import type {SymbolQuad} from '../../symbol/quads';
+import type {SizeData} from '../../symbol/symbol_size';
+import type {PossiblyEvaluatedPropertyValue} from '../../style/properties';
+import type {Transferable} from '../../types/transferable';
 
 export type SingleCollisionBox = {
     x1: number;
@@ -366,8 +369,29 @@ class SymbolBucket implements Bucket {
     index: number;
     sdfIcons: boolean;
     iconsNeedLinear: boolean;
-    textSizeData: any;
-    iconSizeData: any;
+
+    // The symbol layout process needs `text-size` evaluated at up to five different zoom levels, and
+    // `icon-size` at up to three:
+    //
+    //   1. `text-size` at the zoom level of the bucket. Used to calculate a per-feature size for source `text-size`
+    //       expressions, and to calculate the box dimensions for icon-text-fit.
+    //   2. `icon-size` at the zoom level of the bucket. Used to calculate a per-feature size for source `icon-size`
+    //       expressions.
+    //   3. `text-size` and `icon-size` at the zoom level of the bucket, plus one. Used to calculate collision boxes.
+    //   4. `text-size` at zoom level 18. Used for something line-symbol-placement-related.
+    //   5.  For composite `*-size` expressions: two zoom levels of curve stops that "cover" the zoom level of the
+    //       bucket. These go into a vertex buffer and are used by the shader to interpolate the size at render time.
+    //
+    // (1) and (2) are stored in `this.layers[0].layout`. The remainder are below.
+    //
+    textSizeData: SizeData;
+    iconSizeData: SizeData;
+    layoutTextSize: PossiblyEvaluatedPropertyValue<number>; // (3)
+    layoutIconSize: PossiblyEvaluatedPropertyValue<number>; // (3)
+    textMaxSize: PossiblyEvaluatedPropertyValue<number>;    // (4)
+    compositeTextSizes: [PossiblyEvaluatedPropertyValue<number>, PossiblyEvaluatedPropertyValue<number>]; // (5)
+    compositeIconSizes: [PossiblyEvaluatedPropertyValue<number>, PossiblyEvaluatedPropertyValue<number>]; // (5)
+
     placedGlyphArray: StructArray;
     placedIconArray: StructArray;
     glyphOffsetArray: StructArray;
@@ -415,13 +439,34 @@ class SymbolBucket implements Bucket {
             this.symbolInstances = options.symbolInstances;
 
             const layout = options.layers[0].layout;
-            this.sortFeaturesByY = layout['text-allow-overlap'] || layout['icon-allow-overlap'] ||
-                layout['text-ignore-placement'] || layout['icon-ignore-placement'];
+            this.sortFeaturesByY = layout.get('text-allow-overlap') || layout.get('icon-allow-overlap') ||
+                layout.get('text-ignore-placement') || layout.get('icon-ignore-placement');
 
         } else {
-            const layer = this.layers[0];
-            this.textSizeData = getSizeData(this.zoom, layer, 'text-size');
-            this.iconSizeData = getSizeData(this.zoom, layer, 'icon-size');
+            const layer: SymbolStyleLayer = this.layers[0];
+            const unevaluatedLayoutValues = layer._unevaluatedLayout._values;
+
+            this.textSizeData = getSizeData(this.zoom, unevaluatedLayoutValues['text-size']);
+            if (this.textSizeData.functionType === 'composite') {
+                const {min, max} = this.textSizeData.zoomRange;
+                this.compositeTextSizes = [
+                    unevaluatedLayoutValues['text-size'].possiblyEvaluate({zoom: min}),
+                    unevaluatedLayoutValues['text-size'].possiblyEvaluate({zoom: max})
+                ];
+            }
+
+            this.iconSizeData = getSizeData(this.zoom, unevaluatedLayoutValues['icon-size']);
+            if (this.iconSizeData.functionType === 'composite') {
+                const {min, max} = this.iconSizeData.zoomRange;
+                this.compositeIconSizes = [
+                    unevaluatedLayoutValues['icon-size'].possiblyEvaluate({zoom: min}),
+                    unevaluatedLayoutValues['icon-size'].possiblyEvaluate({zoom: max})
+                ];
+            }
+
+            this.layoutTextSize = unevaluatedLayoutValues['text-size'].possiblyEvaluate({zoom: this.zoom + 1});
+            this.layoutIconSize = unevaluatedLayoutValues['icon-size'].possiblyEvaluate({zoom: this.zoom + 1});
+            this.textMaxSize = unevaluatedLayoutValues['text-size'].possiblyEvaluate({zoom: 18});
         }
     }
 
@@ -438,12 +483,16 @@ class SymbolBucket implements Bucket {
     }
 
     populate(features: Array<IndexedFeature>, options: PopulateParameters) {
-        const layer: SymbolStyleLayer = this.layers[0];
+        const layer = this.layers[0];
         const layout = layer.layout;
-        const textFont = layout['text-font'];
 
-        const hasText = (!layer.isLayoutValueFeatureConstant('text-field') || layout['text-field']) && textFont;
-        const hasIcon = (!layer.isLayoutValueFeatureConstant('icon-image') || layout['icon-image']);
+        const textFont = layout.get('text-font');
+        const textField = layout.get('text-field');
+        const iconImage = layout.get('icon-image');
+        const hasText =
+            (textField.value.kind !== 'constant' || textField.value.value.length > 0) &&
+            (textFont.value.kind !== 'constant' || textFont.value.value.length > 0);
+        const hasIcon = iconImage.value.kind !== 'constant' || iconImage.value.value && iconImage.value.value.length > 0;
 
         this.features = [];
 
@@ -453,7 +502,6 @@ class SymbolBucket implements Bucket {
 
         const icons = options.iconDependencies;
         const stacks = options.glyphDependencies;
-        const stack = stacks[textFont] = stacks[textFont] || {};
         const globalProperties =  {zoom: this.zoom};
 
         for (const {feature, index, sourceLayerIndex} of features) {
@@ -463,19 +511,13 @@ class SymbolBucket implements Bucket {
 
             let text;
             if (hasText) {
-                text = layer.getLayoutValue('text-field', globalProperties, feature);
-                if (layer.isLayoutValueFeatureConstant('text-field')) {
-                    text = resolveTokens(feature.properties, text);
-                }
-                text = transformText(text, layer, globalProperties, feature);
+                text = layer.getValueAndResolveTokens('text-field', feature);
+                text = transformText(text, layer, feature);
             }
 
             let icon;
             if (hasIcon) {
-                icon = layer.getLayoutValue('icon-image', globalProperties, feature);
-                if (layer.isLayoutValueFeatureConstant('icon-image')) {
-                    icon = resolveTokens(feature.properties, icon);
-                }
+                icon = layer.getValueAndResolveTokens('icon-image', feature);
             }
 
             if (!text && !icon) {
@@ -501,7 +543,9 @@ class SymbolBucket implements Bucket {
             }
 
             if (text) {
-                const textAlongLine = layout['text-rotation-alignment'] === 'map' && layout['symbol-placement'] === 'line';
+                const fontStack = textFont.evaluate(feature).join(',');
+                const stack = stacks[fontStack] = stacks[fontStack] || {};
+                const textAlongLine = layout.get('text-rotation-alignment') === 'map' && layout.get('symbol-placement') === 'line';
                 const allowsVerticalWritingMode = scriptDetection.allowsVerticalWritingMode(text);
                 for (let i = 0; i < text.length; i++) {
                     stack[text.charCodeAt(i)] = true;
@@ -515,7 +559,7 @@ class SymbolBucket implements Bucket {
             }
         }
 
-        if (layout['symbol-placement'] === 'line') {
+        if (layout.get('symbol-placement') === 'line') {
             // Merge adjacent lines with the same text to improve labelling.
             // It's better to place labels on one long line than on many short segments.
             this.features = mergeLines(this.features);

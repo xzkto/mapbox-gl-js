@@ -17,6 +17,7 @@ import type Dispatcher from '../util/dispatcher';
 import type Transform from '../geo/transform';
 import type {TileState} from './tile';
 import type CollisionIndex from '../symbol/collision_index';
+import type {Callback} from '../types/callback';
 
 /**
  * `SourceCache` is responsible for
@@ -174,6 +175,15 @@ class SourceCache extends Evented {
      * Return all tile ids ordered with z-order, and cast to numbers
      */
     getIds(): Array<number> {
+
+        const compareKeyZoom = (a_, b_) => {
+            const a = TileCoord.fromID(a_);
+            const b = TileCoord.fromID(b_);
+            const rotatedA = (new Point(a.x, a.y)).rotate(this.transform.angle);
+            const rotatedB = (new Point(b.x, b.y)).rotate(this.transform.angle);
+            return a.z - b.z || rotatedB.y - rotatedA.y || rotatedB.x - rotatedA.x;
+        };
+
         return Object.keys(this._tiles).map(Number).sort(compareKeyZoom);
     }
 
@@ -322,7 +332,7 @@ class SourceCache extends Evented {
             }
             if (this._cache.has(id)) {
                 retain[id] = true;
-                return this._cache.getWithoutRemoving(id);
+                return this._cache.get(id);
             }
         }
     }
@@ -526,7 +536,7 @@ class SourceCache extends Evented {
             return tile;
 
 
-        tile = this._cache.get((tileCoord.id: any));
+        tile = this._cache.getAndRemove((tileCoord.id: any));
         if (tile) {
             this._updatePlacement();
             if (this.map)
@@ -697,6 +707,23 @@ class SourceCache extends Evented {
         }
         return coords;
     }
+
+    hasTransition() {
+        if (this._source.hasTransition()) {
+            return true;
+        }
+
+        if (isRasterType(this._source.type)) {
+            for (const id in this._tiles) {
+                const tile = this._tiles[id];
+                if (tile.fadeEndTime !== undefined && tile.fadeEndTime >= Date.now()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }
 
 SourceCache.maxOverzooming = 10;
@@ -712,10 +739,6 @@ function coordinateToTilePoint(tileCoord: TileCoord, sourceMaxZoom: number, coor
         (zoomedCoord.column - (tileCoord.x + tileCoord.w * Math.pow(2, tileCoord.z))) * EXTENT,
         (zoomedCoord.row - tileCoord.y) * EXTENT
     );
-}
-
-function compareKeyZoom(a, b) {
-    return (a % 32) - (b % 32);
 }
 
 function isRasterType(type) {

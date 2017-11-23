@@ -17,6 +17,7 @@ import type {
 } from '../source/worker_source';
 
 import type {WorkerGlobalScopeInterface} from '../util/web_worker';
+import type {Callback} from '../types/callback';
 
 /**
  * @private
@@ -63,8 +64,8 @@ class Worker {
         callback();
     }
 
-    updateLayers(mapId: string, params: {layers: Array<LayerSpecification>, removedIds: Array<string>, symbolOrder: ?Array<string>}, callback: WorkerTileCallback) {
-        this.getLayerIndex(mapId).update(params.layers, params.removedIds, params.symbolOrder);
+    updateLayers(mapId: string, params: {layers: Array<LayerSpecification>, removedIds: Array<string>}, callback: WorkerTileCallback) {
+        this.getLayerIndex(mapId).update(params.layers, params.removedIds);
         callback();
     }
 

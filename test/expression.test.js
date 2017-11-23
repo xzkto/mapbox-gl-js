@@ -2,8 +2,9 @@
 
 require('flow-remove-types/register');
 const expressionSuite = require('./integration').expression;
-const { createExpression } = require('../src/style-spec/expression');
+const { createPropertyExpression } = require('../src/style-spec/expression');
 const { toString } = require('../src/style-spec/expression/types');
+const ignores = require('./ignores.json');
 
 let tests;
 
@@ -11,17 +12,17 @@ if (process.argv[1] === __filename && process.argv.length > 2) {
     tests = process.argv.slice(2);
 }
 
-expressionSuite.run('js', {tests: tests}, (fixture) => {
+expressionSuite.run('js', { ignores, tests }, (fixture) => {
     const spec = fixture.propertySpec || {};
     spec['function'] = true;
     spec['property-function'] = true;
 
-    const expression = createExpression(fixture.expression, spec, 'property', {handleErrors: false});
+    let expression = createPropertyExpression(fixture.expression, spec, {handleErrors: false});
     if (expression.result === 'error') {
         return {
             compiled: {
-                result: expression.result,
-                errors: expression.errors.map((err) => ({
+                result: 'error',
+                errors: expression.value.map((err) => ({
                     key: err.key,
                     error: err.message
                 }))
@@ -29,13 +30,15 @@ expressionSuite.run('js', {tests: tests}, (fixture) => {
         };
     }
 
+    expression = expression.value;
+
     const outputs = [];
     const result = {
         outputs,
         compiled: {
-            result: expression.result,
-            isZoomConstant: expression.isZoomConstant,
-            isFeatureConstant: expression.isFeatureConstant,
+            result: 'success',
+            isZoomConstant: expression.kind === 'constant' || expression.kind === 'source',
+            isFeatureConstant: expression.kind === 'constant' || expression.kind === 'camera',
             type: toString(expression.parsed.type)
         }
     };

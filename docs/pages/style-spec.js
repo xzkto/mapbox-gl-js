@@ -82,22 +82,22 @@ const navigation = [
         "title": "Sources",
         "subnav": [
             {
-                "title": "Vector"
+                "title": "vector"
             },
             {
-                "title": "Raster"
+                "title": "raster"
             },
             {
-                "title": "GeoJSON"
+                "title": "geojson"
             },
             {
-                "title": "Image"
+                "title": "image"
             },
             {
-                "title": "Video"
+                "title": "video"
             },
             {
-                "title": "Canvas"
+                "title": "canvas"
             }
         ]
     },
@@ -122,28 +122,28 @@ const navigation = [
         "title": "Layers",
         "subnav": [
             {
-                "title": "Background"
+                "title": "background"
             },
             {
-                "title": "Fill"
+                "title": "fill"
             },
             {
-                "title": "Line"
+                "title": "line"
             },
             {
-                "title": "Symbol"
+                "title": "symbol"
             },
             {
-                "title": "Raster"
+                "title": "raster"
             },
             {
-                "title": "Circle"
+                "title": "circle"
             },
             {
-                "title": "Fill-Extrusion"
+                "title": "fill-extrusion"
             },
             {
-                "title": "Heatmap"
+                "title": "heatmap"
             }
         ]
     },
@@ -152,9 +152,6 @@ const navigation = [
         "subnav": [
             {
                 "title": "Color"
-            },
-            {
-                "title": "Enum"
             },
             {
                 "title": "String"
@@ -273,8 +270,8 @@ function renderParams(params, maxLength) {
 }
 
 class Item extends React.Component {
-    type() {
-        switch (this.props.type) {
+    type(spec = this.props, plural = false) {
+        switch (spec.type) {
         case null:
         case '*':
             return;
@@ -284,10 +281,12 @@ class Item extends React.Component {
             return <span> <a href='#transition'>transition</a></span>;
         case 'sources':
             return <span> object with <a href='#sources'>source</a> values</span>;
+        case 'layer':
+            return <span> <a href='#layers'>layer{plural && 's'}</a></span>;
         case 'array':
-            return <span> <a href='#types-array'>array</a>{this.props.value && <span> of <a href={this.props.value === 'layer' ? `#layers` : `#types-${this.props.value}`}>{this.props.value}s</a></span>}</span>;
+            return <span> <a href='#types-array'>array</a>{spec.value && <span> of {this.type(typeof spec.value === 'string' ? {type: spec.value} : spec.value, true)}</span>}</span>;
         default:
-            return <span> <a href={`#types-${this.props.type}`}>{this.props.type}</a></span>;
+            return <span> <a href={`#types-${spec.type}`}>{spec.type}{plural && 's'}</a></span>;
         }
     }
 
@@ -335,16 +334,16 @@ class Item extends React.Component {
                         {this.props.required ? 'Required' : 'Optional'}
                         {this.type()}
                         {'minimum' in this.props && 'maximum' in this.props &&
-                        <span> between <var>{this.props.minimum}</var> and <var>{this.props.maximum}</var> inclusive</span>}
+                        <span> between <code>{this.props.minimum}</code> and <code>{this.props.maximum}</code> inclusive</span>}
                         {'minimum' in this.props && !('maximum' in this.props) &&
-                        <span> greater than or equal to <var>{this.props.minimum}</var></span>}
+                        <span> greater than or equal to <code>{this.props.minimum}</code></span>}
                         {!('minimum' in this.props) && 'maximum' in this.props &&
-                        <span> less than or equal to <var>{this.props.minimum}</var></span>}. </em>
+                        <span> less than or equal to <code>{this.props.minimum}</code></span>}. </em>
 
                     {this.props.values && !Array.isArray(this.props.values) && // skips $root.version
                     <em className='quiet'>
                         One of {Object.keys(this.props.values)
-                            .map((opt, i) => <var key={i}>{opt}</var>)
+                            .map((opt, i) => <code key={i}>{JSON.stringify(opt)}</code>)
                             .reduce((prev, curr) => [prev, ', ', curr])}. </em>}
 
                     {this.props.units &&
@@ -353,7 +352,7 @@ class Item extends React.Component {
 
                     {this.props.default !== undefined &&
                     <em className='quiet'>
-                        Defaults to <var>{typeof this.props.default !== 'string' ? JSON.stringify(this.props.default) : this.props.default}</var>. </em>}
+                        Defaults to <code>{JSON.stringify(this.props.default)}</code>. </em>}
 
                     {this.props.requires &&
                     <em className='quiet'>
@@ -374,7 +373,7 @@ class Item extends React.Component {
                 <div className='space-bottom1'>
                     <dl>
                         {entries(this.props.values).map(([v, {doc}], i) =>
-                            [<dt key={`${i}-dt`}><var>{v}</var></dt>, <dd key={`${i}-dd`}>{md(doc)}</dd>]
+                            [<dt key={`${i}-dt`}><code>{JSON.stringify(v)}</code>:</dt>, <dd key={`${i}-dd`} className='space-bottom1'>{md(doc)}</dd>]
                         )}
                     </dl>
                 </div>}
@@ -594,11 +593,9 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
                                     <div className='space-bottom1 clearfix'>
-                                        { entries(ref.source_tile).map(([name, prop], i) =>
-                                            // note that we omit 'tileSize' here, since VECTOR and raster
-                                            // both use source_tile, but tileSize is prohibited for vector sources
-                                            name !== '*' && name !== 'type' && name !== 'tileSize' &&
-                                                <Item key={i} id={`sources-vector-${name}`} name={name} {...prop}/>)}
+                                        { entries(ref.source_vector).map(([name, prop], i) =>
+                                            name !== '*' && name !== 'type' &&
+                                            <Item key={i} id={`sources-vector-${name}`} name={name} {...prop}/>)}
                                     </div>
                                     <table className="micro">
                                         <thead>
@@ -637,9 +634,9 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
                                     <div className='space-bottom1 clearfix'>
-                                        { entries(ref.source_tile).map(([name, prop], i) =>
+                                        { entries(ref.source_raster).map(([name, prop], i) =>
                                             name !== '*' && name !== 'type' &&
-                                                <Item key={i} id={`sources-raster-${name}`} name={name} {...prop}/>)}
+                                            <Item key={i} id={`sources-raster-${name}`} name={name} {...prop}/>)}
                                     </div>
                                     <table className="micro">
                                         <thead>
@@ -754,7 +751,7 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
                                     <div className='space-bottom1 clearfix'>
-                                        { entries(ref.source_tile).map(([name, prop], i) =>
+                                        { entries(ref.source_image).map(([name, prop], i) =>
                                             name !== '*' && name !== 'type' &&
                                             <Item key={i} id={`sources-image-${name}`} name={name} {...prop}/>)}
                                     </div>
@@ -772,9 +769,9 @@ export default class extends React.Component {
                                             <tr>
                                                 <td>basic functionality</td>
                                                 <td className='center'>&gt;= 0.10.0</td>
-                                                <td className='center'><a href="https://github.com/mapbox/mapbox-gl-native/issues/1350">Not yet supported</a></td>
-                                                <td className='center'><a href="https://github.com/mapbox/mapbox-gl-native/issues/1350">Not yet supported</a></td>
-                                                <td className='center'><a href="https://github.com/mapbox/mapbox-gl-native/issues/1350">Not yet supported</a></td>
+                                                <td className='center'>&gt;= 5.2.0</td>
+                                                <td className='center'>&gt;= 3.7.0</td>
+                                                <td className='center'>&gt;= 0.6.0</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -808,7 +805,7 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
                                     <div className='space-bottom1 clearfix'>
-                                        { entries(ref.source_tile).map(([name, prop], i) =>
+                                        { entries(ref.source_video).map(([name, prop], i) =>
                                             name !== '*' && name !== 'type' &&
                                             <Item key={i} id={`sources-video-${name}`} name={name} {...prop}/>)}
                                     </div>
@@ -866,7 +863,7 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
                                     <div className='space-bottom1 clearfix'>
-                                        { entries(ref.source_tile).map(([name, prop], i) =>
+                                        { entries(ref.source_canvas).map(([name, prop], i) =>
                                             name !== '*' && name !== 'type' &&
                                             <Item key={i} id={`sources-canvas-${name}`} name={name} {...prop}/>)}
                                     </div>
@@ -1071,16 +1068,6 @@ export default class extends React.Component {
                                 </div>
 
                                 <div className='pad2 keyline-bottom'>
-                                    <a id='types-enum' className='anchor'/>
-                                    <h3 className='space-bottom1'><a href='#types-enum' title='link to enum'>Enum</a></h3>
-                                    <p>One of a fixed list of string values. Use quotes around values.</p>
-                                    {highlightJSON(`
-                                        {
-                                            "text-transform": "uppercase"
-                                        }`)}
-                                </div>
-
-                                <div className='pad2 keyline-bottom'>
                                     <a id='types-string' className='anchor'/>
                                     <h3 className='space-bottom1'><a href='#types-string' title='link to string'>String</a></h3>
                                     <p>A string is basically just text. In Mapbox styles, you're going to put it in quotes. Strings can be anything, though pay attention to the case of <code>text-field</code> - it actually will refer to features, which you refer to by putting them in curly braces, as seen in the example below.</p>
@@ -1128,60 +1115,41 @@ export default class extends React.Component {
                             <h2><a href='#expressions' title='link to expressions'>Expressions</a></h2>
 
                             <p>The value for any <a href="#layout-property">layout property</a>, <a
-                                href="#paint-property">paint property</a>, or <a
-                                href="#layer-filter">filter</a> may be specified as an <em>expression</em>.
-                                Expressions define how one or more feature
-                                property values and/or the current zoom level are combined using
-                                logical, mathematical, string, or color operations to produce the
-                                appropriate style property value or filter decision.</p>
+                                href="#paint-property">paint property</a>, or <a href="#layer-filter">filter</a> may be
+                                specified as an <em>expression</em>. An expression defines a formula for computing the
+                                value of the property using the <em>operators</em> described below. The set of expression
+                                operators provided by Mapbox GL includes:
+                            </p>
 
-                            <table className="micro space-bottom">
-                                <thead>
-                                    <tr className='fill-light'>
-                                        <th>SDK Support</th>
-                                        <td className='center'>Mapbox GL JS</td>
-                                        <td className='center'>Android SDK</td>
-                                        <td className='center'>iOS SDK</td>
-                                        <td className='center'>macOS SDK</td>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td>Layout and paint property expressions</td>
-                                        <td className='center'>&gt;= 0.41.0</td>
-                                        <td className='center'>Not yet supported</td>
-                                        <td className='center'>Not yet supported</td>
-                                        <td className='center'>Not yet supported</td>
-                                    </tr>
-                                    <tr>
-                                        <td>Filter expressions</td>
-                                        <td className='center'>&gt;= 0.41.0</td>
-                                        <td className='center'>Not yet supported</td>
-                                        <td className='center'>Not yet supported</td>
-                                        <td className='center'>Not yet supported</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                            <ul>
+                                <li>Mathematical operators for performing arithmetic and other operations on numeric values</li>
+                                <li>Logical operators for manipulating boolean values and making conditional decisions</li>
+                                <li>String operators for manipulating strings</li>
+                                <li>Data operators, providing access to the properties of source features</li>
+                                <li>Camera operators, providing access to the parameters defining the current map view</li>
+                            </ul>
 
-                            <h3>Syntax</h3>
-                            <p>Mapbox GL JS expressions uses a Lisp-like syntax, represented using JSON arrays. Expressions follow this format:</p>
+                            <p>Expressions are represented as JSON arrays. The first element of an expression array is a
+                                string naming the expression operator, e.g. <a href="#expressions-*"><code>"*"</code></a>
+                                or <a href="#expressions-case"><code>"case"</code></a>. Subsequent elements (if any)
+                                are the <em>arguments</em> to the expression. Each argument is either a literal value
+                                (a string, number, boolean, or <code>null</code>), or another expression array.</p>
+
                             <div className='col12 space-bottom'>
                                 {highlightJSON(`[expression_name, argument_0, argument_1, ...]`)}
                             </div>
-                            <p>The <code>expression_name</code> is the name of a specific expression, e.g. <a
-                                href="#expressions-*"><code>'*'</code></a> or <a
-                                href="#expressions-case"><code>'case'</code></a>. Each <code>argument_i</code> is either
-                                a literal value (a string, number, boolean, or <code>null</code>), or else another
-                                expression in the array form above.</p>
 
-                            <h3>Property expressions</h3>
-                            <p>A <a id="property-expression" className="anchor"></a><strong>property expression</strong> is
-                                any expression defined using an expression that includes a reference to feature property
-                                data. Property expressions allow the appearance of a feature to change with its
-                                properties. They can be used to visually differentate types of features within the same
-                                layer or create data visualizations.</p>
+                            <h3>Data expressions</h3>
+                            <p>A <em>data expression</em> is any expression that access feature data -- that is, any
+                                expression that uses one of the data operators:
+                                <a href="#expressions-get"><code>get</code></a>,
+                                <a href="#expressions-has"><code>has</code></a>,
+                                <a href="#expressions-id"><code>id</code></a>,
+                                <a href="#expressions-geometry-type"><code>geometry-type</code></a>, or
+                                <a href="#expressions-properties"><code>properties</code></a>. Data expressions allow a
+                                feature's properties to determine its appearance. They can be used to differentiate
+                                features within the same layer and to create data visualizations.</p>
 
-                            <h4>Example: a property expression</h4>
                             <div className='col12 space-bottom'>
                                 {highlightJSON(`
                                     {
@@ -1189,6 +1157,7 @@ export default class extends React.Component {
                                             "rgb",
                                             // red is higher when feature.properties.temperature is higher
                                             ["get", "temperature"],
+                                            // green is always zero
                                             0,
                                             // blue is higher when feature.properties.temperature is lower
                                             ["-", 100, ["get", "temperature"]]
@@ -1196,20 +1165,25 @@ export default class extends React.Component {
                                     }`)}
                             </div>
 
-                            <p>In this example <code>["get", "temperature"]</code> uses <a
-                                href="#expressions-get"><code>'get'</code></a> to look up
-                                the <code>"temperature"</code> property of each feature. That value is then used in the <a
-                                href="#expressions-rgb"><code>'rgb'</code></a> expression to define a color in terms
-                                of its red, green, and blue components.</p>
+                            <p>This example uses the  <a href="#expressions-get"><code>get</code></a> operator to obtain
+                                the <code>temperature</code> value of each feature. That value is used to compute
+                                arguments to the <a href="#expressions-rgb"><code>rgb</code></a> operator, defining a
+                                color in terms of its red, green, and blue components.</p>
 
-                            <h3>Zoom expressions</h3>
-                            <p>A <a id="zoom-expression" className="anchor"></a><strong>zoom expression</strong> is any
-                                expression defined using an expression that includes <code>["zoom"]</code>. Such
-                                expressions allow the the appearance of a layer to change with the map’s zoom level.
-                                Zoom expressions can be used to create the illusion of depth and control data density.
+                            <p>Data expressions are allowed as the value of the
+                                <a href="#layer-filter"><code>filter</code></a> property, and as values for most paint
+                                and layout properties. However, some paint and layout properties do not yet support data
+                                expressions. The level of support is indicated by the "data-driven styling" row of the
+                                "SDK Support" table for each property.</p>
+
+                            <h3>Camera expressions</h3>
+                            <p>A <a id="camera-expression" className="anchor"></a><em>camera expression</em> is any
+                                expression that uses the <a href="#expressions-zoom"><code>zoom</code></a> operator. Such
+                                expressions allow the the appearance of a layer to change with the map's zoom level.
+                                Camera expressions can be used to create the appearance of depth and to control data
+                                density.
                             </p>
 
-                            <h4>Example: a zoom-only expression</h4>
                             <div className='col12 space-bottom'>
                                 {highlightJSON(`
                                     {
@@ -1217,20 +1191,22 @@ export default class extends React.Component {
                                             "interpolate", ["linear"], ["zoom"],
                                             // zoom is 5 (or less) -> circle radius will be 1px
                                             5, 1,
-                                            // zoom is 10 (or greater) -> circle radius will be 2px
-                                            10, 2
+                                            // zoom is 10 (or greater) -> circle radius will be 5px
+                                            10, 5
                                         ]
                                     }`)}
                             </div>
 
-                            <p>This example uses an <a href="#expressions-interpolate"><code>interpolate</code></a> expression to
-                                define a linear relationship between zoom level and circle size using a set of
-                                input-output pairs. In this case, the expression indicates that the circle radius should
-                                be 1 pixel when the zoom level is 5, and 2 pixels when the zoom is 10. (See <a
-                                    href="#expressions-interpolate">the <code>interpolate</code> documentation</a> for more
-                                details.)</p>
+                            <p>This example uses the <a
+                                href="#expressions-interpolate"><code>interpolate</code></a>
+                                operator to define a linear relationship between zoom level and circle size using a set
+                                of input-output pairs. In this case, the expression indicates that the circle radius should
+                                be 1 pixel when the zoom level is 5 or below, and 5 pixels when the zoom is 10 or above.
+                                In between, the radius will be linearly interpolated between 1 and 5 pixels</p>
 
-                            <p>Note that any zoom expression used in a layout or paint property must be of the following forms:</p>
+                            <p>Camera expressions are allowed anywhere an expression may be used. However, when a camera
+                                expression used as the value of a layout or paint property, it must be in one of the
+                                following forms:</p>
 
                             <div className='col12 space-bottom'>
                                 {highlightJSON(`[ "interpolate", interpolation, ["zoom"], ... ]`)}
@@ -1265,13 +1241,24 @@ export default class extends React.Component {
                             </div>
 
                             <p>That is, in layout or paint properties, <code>["zoom"]</code> may appear only as the
-                                input to an outer <a href="#expressions-interpolate"><code>interpolate</code></a> or
-                                <a href="#expressions-step"><code>step</code></a> expression, or such an expression within a
-                                <a href="#expressions-let"><code>let</code></a> expression.</p>
+                                input to an outer <a href="#expressions-interpolate"><code>interpolate</code></a> or <a
+                                    href="#expressions-step"><code>step</code></a> expression, or such an expression within
+                                a <a href="#expressions-let"><code>let</code></a> expression.</p>
 
-                            <h4>Example: a zoom-and-property expression</h4>
-                            <p>Combining zoom and property expressions allows a layer's appearance to change with
-                                both the zoom level <em>and</em> each feature's properties.</p>
+                            <p>There is an important difference between layout and paint properties in
+                                the timing of camera expression evaluation. Paint property camera expressions are
+                                re-evaluated whenever the zoom level changes, even fractionally. For example, a paint
+                                property camera expression will be re-evaluated continuously as the map moves between
+                                zoom levels 4.1 and 4.6. On the other hand, a layout property camera expression is
+                                evaluated only at integer zoom levels. It will <em>not</em> be re-evaluated as the zoom
+                                changes from 4.1 to 4.6 -- only if it goes above 5 or below 4.
+                            </p>
+
+                            <h3>Composition</h3>
+                            <p>A single expression may use a mix of data operators, camera operators, and other
+                                operators. Such composite expressions allows a layer's appearance to be determined by a
+                                combination of the zoom level <em>and</em> individual feature properties.
+                            </p>
 
                             <div className='col12 space-bottom'>
                                 {highlightJSON(`
@@ -1280,24 +1267,100 @@ export default class extends React.Component {
                                             "interpolate", ["linear"], ["zoom"],
                                             // when zoom is 0, set each feature's circle radius to the value of its "rating" property
                                             0, ["get", "rating"],
-                                            // when zoom is 0, set each feature's circle radius to four times the value of its "rating" property
+                                            // when zoom is 10, set each feature's circle radius to four times the value of its "rating" property
                                             10, ["*", 4, ["get", "rating"]]
                                         ]
                                     }`)}
                             </div>
 
-                            <p>There is an important difference between <em>layout</em> and <em>paint</em> properties in
-                                the way that expressions are evaluated. Paint properties are re-evaluated whenever the
-                                zoom level changes, even fractionally. The rendered value of a paint property will
-                                change, for example, as the map moves between zoom levels <code>4.1</code> and
-                                <code>4.6</code>. Layout properties, on the other hand, are evaluated only once for each
-                                integer zoom level. To continue the prior example: the rendering of a layout property
-                                will <em>not</em> change between zoom levels <code>4.1</code> and <code>4.6</code>, no
-                                matter what stops are specified; but at zoom level <code>5</code>, the expression will
-                                be re-evaluated, and the property's rendered value will change. (You can include
-                                fractional zoom levels in a layout property zoom expression, and it will affect the
-                                generated values; but, still, the rendering will only change at integer zoom levels.)
+                            <p>An expression that uses both data and camera operators is considered both a data expression
+                                and a camera expression, and must adhere to the restrictions described above for both.</p>
+
+                            <h3>Type system</h3>
+                            <p>The input arguments to expressions, and their result values, use the same set of <a
+                                href="#types">types</a> as the rest of the style specification: boolean, string,
+                                number, color, and arrays of these types. Furthermore, expressions are <em>type safe</em>:
+                                each use of an expression has a known result type and required argument types, and the
+                                SDKs verify that the result type of an expression is appropriate for the context in
+                                which it is used. For example, the result type of an expression in the <a
+                                href="#layer-filter"><code>filter</code></a> property must be <a
+                                href="#types-boolean">boolean</a>, and the arguments to the <a
+                                href="#expressions-+"><code>+</code></a> operator must be <a
+                                href="#types-number">numbers</a>.
                             </p>
+
+                            <p>When working with feature data, the type of a feature property value is typically not known
+                                ahead of time by the SDK. In order to preserve type safety, when evaluating a data
+                                expression, the SDK will check that the property value is appropriate for the context.
+                                For example, if you use the expression <code>["get", "feature-color"]</code> for the <a
+                                    href="#paint-circle-circle-color"><code>circle-color</code></a> property, the SDK
+                                will verify that the <code>feature-color</code> value of each feature is a string
+                                identifying a valid <a href="#types-color">color</a>. If this check fails, an error will
+                                be indicated in an SDK-specific way (typically a log message), and the default value for
+                                the property will be used instead.
+                            </p>
+
+                            <p>In most cases, this verification will occur automatically wherever it is needed. However,
+                                in certain situations, the SDK may be unable to automatically determine the expected
+                                result type of a data expression from surrounding context. For example, it is not clear
+                                whether the expression <code>["&lt;", ["get", "a"], ["get", "b"]]</code> is attempting
+                                to compare strings or numbers. In situations like this, you can use one of
+                                the <em>type assertion</em> expression operators to indicate the expected type of a
+                                data expression: <code>["&lt;", ["number", ["get", "a"]], ["number", ["get", "b"]]]</code>.
+                                A type assertion checks that the feature data actually matches the expected type of the
+                                data expression. If this check fails, it produces an error and causes the whole
+                                expression to fall back to the default value for the property being defined. The
+                                assertion operators are <a
+                                    href="#expressions-types-array"><code>array</code></a>, <a
+                                    href="#expressions-types-boolean"><code>boolean</code></a>, <a
+                                    href="#expressions-types-number"><code>number</code></a>, and <a
+                                    href="#expressions-types-string"><code>string</code></a>.
+                            </p>
+
+                            <p>Expressions perform only one kind of implicit type conversion: a data expression used in
+                                a context where a <a href="#types-color">color</a> is expected will convert a string
+                                representation of a color to a color value. In all other cases, if you want to convert
+                                between types, you must use one of the <em>type conversion</em> expression operators: <a
+                                    href="#expressions-types-to-boolean"><code>to-boolean</code></a>, <a
+                                    href="#expressions-types-to-number"><code>to-number</code></a>, <a
+                                    href="#expressions-types-to-string"><code>to-string</code></a>, or <a
+                                    href="#expressions-types-to-color"><code>to-color</code></a>. For example, if you
+                                have a feature property that stores numeric values in string format, and you want to use
+                                those values as numbers rather than strings, you can use an expression such
+                                as <code>["to-number", ["get", "property-name"]]</code>.
+                            </p>
+
+                            <h3>SDK Support</h3>
+                            <p>Support for expressions was introduced to Mapbox GL JS in version 0.41.0. Support in other SDKs
+                                is forthcoming.</p>
+
+                            <table className="micro space-bottom">
+                                <thead>
+                                    <tr className='fill-light'>
+                                        <th>SDK Support</th>
+                                        <td className='center'>Mapbox GL JS</td>
+                                        <td className='center'>Android SDK</td>
+                                        <td className='center'>iOS SDK</td>
+                                        <td className='center'>macOS SDK</td>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Layout and paint property expressions</td>
+                                        <td className='center'>&gt;= 0.41.0</td>
+                                        <td className='center'>Not yet supported</td>
+                                        <td className='center'>Not yet supported</td>
+                                        <td className='center'>Not yet supported</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Filter expressions</td>
+                                        <td className='center'>&gt;= 0.41.0</td>
+                                        <td className='center'>Not yet supported</td>
+                                        <td className='center'>Not yet supported</td>
+                                        <td className='center'>Not yet supported</td>
+                                    </tr>
+                                </tbody>
+                            </table>
 
                             <h3>Expression reference</h3>
 
@@ -1397,14 +1460,15 @@ export default class extends React.Component {
                                         <div className="col12 clearfix pad0y pad2x space-bottom2">
                                             <div><span className='code'><a id="function-type"
                                                 href="#function-type">type</a></span></div>
-                                            <div><em className='quiet'>Optional <a href='#types-string'>enum</a>. One of
-                                                <var>identity</var>, <var>exponential</var>, <var>interval</var>, <var>categorical</var>.</em>
+                                            <div><em className='quiet'>Optional <a href='#types-string'>string</a>. One
+                                                of <code>"identity"</code>, <code>"exponential"</code>, <code>"interval"
+                                                </code>, or <code>"categorical"</code>.</em>
                                             </div>
                                             <dl>
-                                                <dt><var>identity</var></dt>
-                                                <dd>functions return their input as their output.</dd>
-                                                <dt><var>exponential</var></dt>
-                                                <dd>functions generate an output by interpolating between stops just
+                                                <dt><code>"identity"</code></dt>
+                                                <dd>A function that returns its input as the output.</dd>
+                                                <dt><code>"exponential"</code></dt>
+                                                <dd>A function that generates an output by interpolating between stops just
                                                     less than and just greater than the
                                                     function input. The domain (input value) must be numeric, and the
                                                     style property must support
@@ -1415,8 +1479,8 @@ export default class extends React.Component {
                                                     "exponential" symbol, and <var>exponential</var> is the default
                                                     function type for these properties.
                                                 </dd>
-                                                <dt><var>interval</var></dt>
-                                                <dd>functions return the output value of the stop just less than the
+                                                <dt><code>"interval"</code></dt>
+                                                <dd>A function that returns the output value of the stop just less than the
                                                     function input. The domain (input
                                                     value) must be numeric. Any style property may use interval
                                                     functions. For properties marked with
@@ -1424,8 +1488,8 @@ export default class extends React.Component {
                                                         title='discrete'/>, the "interval"
                                                     symbol, this is the default function type.
                                                 </dd>
-                                                <dt><var>categorical</var></dt>
-                                                <dd>functions return the output value of the stop equal to the function
+                                                <dt><code>"categorical"</code></dt>
+                                                <dd>A function that returns the output value of the stop equal to the function
                                                     input.
                                                 </dd>
                                             </dl>
@@ -1461,8 +1525,8 @@ export default class extends React.Component {
                                             <div><span className='code'><a id="function-colorSpace"
                                                 href="#function-colorSpace">colorSpace</a></span>
                                             </div>
-                                            <div><em className='quiet'>Optional <a href='#types-string'>enum</a>. One of
-                                                <var>rgb</var>, <var>lab</var>, <var>hcl</var>.</em></div>
+                                            <div><em className='quiet'>Optional <a href='#types-string'>string</a>. One of
+                                                <code>"rgb"</code>, <code>"lab"</code>, <code>"hcl"</code>.</em></div>
                                             <div className=' space-bottom1'>The color space in which colors
                                                 interpolated. Interpolating colors in perceptual color spaces like LAB
                                                 and HCL tend to produce color ramps that look more consistent and
@@ -1470,11 +1534,11 @@ export default class extends React.Component {
                                                 interpolated in RGB space.
                                             </div>
                                             <dl className="space-bottom">
-                                                <dt><var>rgb</var></dt>
+                                                <dt><code>"rgb"</code></dt>
                                                 <dd>Use the RGB color space to interpolate color values</dd>
-                                                <dt><var>lab</var></dt>
+                                                <dt><code>"lab"</code></dt>
                                                 <dd>Use the LAB color space to interpolate color values.</dd>
-                                                <dt><var>hcl</var></dt>
+                                                <dt><code>"hcl"</code></dt>
                                                 <dd>Use the HCL color space to interpolate color values, interpolating
                                                     the Hue, Chroma, and Luminance channels individually.
                                                 </dd>
@@ -1575,7 +1639,7 @@ export default class extends React.Component {
                                             }`)}
                                     </div>
 
-                                    <p>The rendered values of <a href='#types-color'>color</a>, <a href='#types-number'>number</a>, and <a href='#types-array'>array</a> properties are intepolated between stops. <a href='#types-enum'>Enum</a>, <a href='#types-boolean'>boolean</a>, and <a href='#types-string'>string</a> property values cannot be intepolated, so their rendered values only change at the specified stops.</p>
+                                    <p>The rendered values of <a href='#types-color'>color</a>, <a href='#types-number'>number</a>, and <a href='#types-array'>array</a> properties are intepolated between stops. <a href='#types-boolean'>Boolean</a> and <a href='#types-string'>string</a> property values cannot be intepolated, so their rendered values only change at the specified stops.</p>
 
                                     <p>There is an important difference between the way that zoom functions render for <em>layout</em> and <em>paint</em> properties. Paint properties are continuously re-evaluated whenever the zoom level changes, even fractionally. The rendered value of a paint property will change, for example, as the map moves between zoom levels <code>4.1</code> and <code>4.6</code>. Layout properties, on the other hand, are evaluated only once for each integer zoom level. To continue the prior example: the rendering of a layout property will <em>not</em> change between zoom levels <code>4.1</code> and <code>4.6</code>, no matter what stops are specified; but at zoom level <code>5</code>, the function will be re-evaluated according to the function, and the property's rendered value will change. (You can include fractional zoom levels in a layout property zoom function, and it will affect the generated values; but, still, the rendering will only change at integer zoom levels.)</p>
 

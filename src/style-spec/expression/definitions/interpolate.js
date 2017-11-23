@@ -17,7 +17,6 @@ export type InterpolationType =
     { name: 'cubic-bezier', controlPoints: [number, number, number, number] };
 
 class Interpolate implements Expression {
-    key: string;
     type: Type;
 
     interpolation: InterpolationType;
@@ -25,8 +24,7 @@ class Interpolate implements Expression {
     labels: Array<number>;
     outputs: Array<Expression>;
 
-    constructor(key: string, type: Type, interpolation: InterpolationType, input: Expression, stops: Stops) {
-        this.key = key;
+    constructor(type: Type, interpolation: InterpolationType, input: Expression, stops: Stops) {
         this.type = type;
         this.interpolation = interpolation;
         this.input = input;
@@ -116,7 +114,7 @@ class Interpolate implements Expression {
                 return context.error('Input/output pairs for "interpolate" expressions must be defined using literal numeric values (not computed expressions) for the input values.', labelKey);
             }
 
-            if (stops.length && stops[stops.length - 1][0] > label) {
+            if (stops.length && stops[stops.length - 1][0] >= label) {
                 return context.error('Input/output pairs for "interpolate" expressions must be arranged with input values in strictly ascending order.', labelKey);
             }
 
@@ -137,7 +135,7 @@ class Interpolate implements Expression {
             return context.error(`Type ${toString(outputType)} is not interpolatable.`);
         }
 
-        return new Interpolate(context.key, outputType, interpolation, input, stops);
+        return new Interpolate(outputType, interpolation, input, stops);
     }
 
     evaluate(ctx: EvaluationContext) {
@@ -174,6 +172,10 @@ class Interpolate implements Expression {
         for (const expression of this.outputs) {
             fn(expression);
         }
+    }
+
+    possibleOutputs() {
+        return [].concat(...this.outputs.map((output) => output.possibleOutputs()));
     }
 }
 
