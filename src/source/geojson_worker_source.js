@@ -225,6 +225,9 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
       }
 
       for (let allClusterData of allClustersDataSorted) {
+        if(typeof allClusterData === 'undefined' || !allClusterData) {
+          continue;
+        }
         for (let apartmentId of allClusterData.apartmentIds) {
           apartmentIds.push(apartmentId);
           apartmentClusterLookup[apartmentId] = allClusterData.clusterId;
