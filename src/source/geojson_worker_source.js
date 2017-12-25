@@ -38,7 +38,10 @@ export type getPointListDataParameters = {
     source: string,
     minzoom: number,
     maxzoom: number,
-    travellingSalesmanApprox?: boolean
+    travellingSalesmanApprox?: boolean,
+    add?: boolean,
+    apartmentIds?: Object,
+    clusterLookup?: Object
 };
 
 export type LoadGeoJSON = (params: LoadGeoJSONParameters, callback: Callback<mixed>) => void;
@@ -88,7 +91,7 @@ function loadGeoJSONTile(params: WorkerTileParameters, callback: LoadVectorDataC
  */
 class GeoJSONWorkerSource extends VectorTileWorkerSource {
     _geoJSONIndexes: { [string]: GeoJSONIndex };
-    loadGeoJSON: LoadGeoJSON;
+    loadGeoJSON: LoadGeoJSON
 
     /**
      * @param [loadGeoJSON] Optional method for custom loading/parsing of
@@ -167,6 +170,12 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
 
       let apartmentClusterLookup = {};
       let apartmentIds = [];
+      
+      if(params.add) {
+        apartmentIds = params.apartmentIds;
+        apartmentClusterLookup = params.clusterLookup;
+      }
+      
       let allClustersData = [];
       let apartmentsCnt = 0;
       
@@ -229,8 +238,10 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
           continue;
         }
         for (let apartmentId of allClusterData.apartmentIds) {
-          apartmentIds.push(apartmentId);
-          apartmentClusterLookup[apartmentId] = allClusterData.clusterId;
+          if(apartmentIds.indexOf(apartmentId) < 0) {
+            apartmentIds.push(apartmentId);
+            apartmentClusterLookup[apartmentId] = allClusterData.clusterId;
+          }
         }
       }
 
