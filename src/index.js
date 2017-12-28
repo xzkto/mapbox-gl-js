@@ -5,6 +5,7 @@ const browser = require('./util/browser');
 const version: string = require('../package.json').version;
 const Map = require('./ui/map');
 const NavigationControl = require('./ui/control/navigation_control');
+const HomeappNavigationControl = require('./ui/control/homeapp_navigation_control');
 const GeolocateControl = require('./ui/control/geolocate_control');
 const AttributionControl = require('./ui/control/attribution_control');
 const ScaleControl = require('./ui/control/scale_control');
@@ -28,6 +29,7 @@ module.exports = {
 
     Map,
     NavigationControl,
+    HomeappNavigationControl,
     GeolocateControl,
     AttributionControl,
     ScaleControl,
